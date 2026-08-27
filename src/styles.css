@@ -7,4 +7,4 @@
 .gateway-indicator{display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(21,41,54,0.5);border-radius:6px;font-size:11px;border:1px solid var(--line)}.gateway-dot{width:6px;height:6px;border-radius:50%;display:inline-block}.gateway-dot.online{background:var(--green);box-shadow:0 0 6px var(--green)}.gateway-dot.offline{background:#8b5a5a;box-shadow:0 0 6px #8b5a5a}.gateway-indicator.connected{border-color:var(--green);background:rgba(127,212,155,0.08)}.gateway-indicator.disconnected{border-color:#8b5a5a;background:rgba(139,90,90,0.08)}
 
 /* Gateway Info Panel */
-.gateway-info{padding:16px}.gateway-info .info-grid{display:grid;gap:12px}.evidence-row b.green{color:var(--green)}.evidence-row b.offline{color:#f06b6b}}
+.gateway-info{padding:16px}.gateway-info .info-grid{display:grid;gap:12px}.evidence-row b.green{color:var(--green)}.evidence-row b.offline{color:#f06b6b}

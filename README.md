@@ -1,28 +1,43 @@
-<<<<<<< HEAD
 # BhedanX Rescue Command
 
-Offline-first disaster-response prototype dashboard for vibration, acoustic activity, persistence, and signal quality. ARIA is a deterministic evidence-fusion score, not machine learning.
+BhedanX is an offline-first rescue dashboard: `Piezo -> ESP32 Probe -> ESP-NOW -> ESP32 Gateway -> USB Serial -> Node.js -> SQLite -> React`.
 
 ## Run
 
-Install Node.js 20+ first, then:
+Requires Node.js 20+.
 
-```bash
-npm install
-npm run dev
+```powershell
+npm.cmd install
+npm.cmd run dev
 ```
 
-Open http://localhost:5173. The Express API runs at http://localhost:3001 and initializes `server/bhedanx.sqlite` automatically. Use `npm run build` then `npm start` for a production-style local run.
+Open `http://localhost:5173`. The API runs at `http://localhost:3001`. For a built local run use `npm.cmd run build` followed by `npm.cmd start`.
 
-## Current prototype
+## Demo Mode
 
-- Gradual simulated telemetry with start, stop, reset, tapping, high activity, acoustic event, and offline controls.
-- Centralized ARIA weighting and priority classification.
-- Responsive command dashboard, probe management, local site-grid map, alert log, analytics-ready history charts, report export/print, and settings view.
-- JSON API and SQLite telemetry/history persistence. The frontend keeps functioning with local simulation if the backend is unavailable.
-- ESP32 hardware is intentionally not implemented; future gateway telemetry enters through `POST /api/telemetry`.
+Select `DEMO` in Settings, then click `RUN FULL DEMO` for the 35-second P-01 sequence. `RESET` clears simulated probes, history, and temporary alerts only.
 
-External map tiles and online fonts are not required: the map is an offline local site-grid visualization and the UI uses system fallback when fonts are unavailable.
-=======
-# BhedanX-Project
->>>>>>> ff27f0c74902e9ef4dd7d13a9b638953d85c29bf
+## Hardware Mode
+
+Wire the piezo to GPIO34, configure the gateway MAC in `firmware/probe/probe.ino`, and upload both firmware sketches. Find the gateway COM port in Device Manager, then run:
+
+```powershell
+$env:BHEDANX_SERIAL_PORT = "COM5"
+$env:BHEDANX_DATA_SOURCE = "REAL_HARDWARE"
+npm.cmd start
+```
+
+Run Vite separately with `npm.cmd run dev` for the dashboard and select `REAL HARDWARE` in Settings. Valid newline-delimited gateway JSON is stored in SQLite, updates the probe and history graph, creates transition alerts, and drives offline detection. The ESP32 score remains primary.
+
+See [docs/hardware-setup.md](docs/hardware-setup.md) and [docs/serial-setup.md](docs/serial-setup.md) for wiring and troubleshooting.
+
+## Final Demo
+
+1. Run `npm.cmd run dev` and open the dashboard.
+2. Select `DEMO`, then click `RUN FULL DEMO`.
+3. Observe score, status, chart, alert, map marker, and acknowledgement.
+4. For hardware, set the serial variables, start the backend, select `REAL HARDWARE`, and tap the piezo.
+
+## Limitations
+
+Hardware verification requires physical ESP32 boards, an Arduino toolchain, and a configured gateway MAC. Acoustic and battery values are unavailable unless supplied by telemetry. The map is an offline local site grid, not GPS.

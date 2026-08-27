@@ -76,6 +76,9 @@ function App() {
     packetsReceived: 0,
     lastPacketTime: null
   });
+  const [diagnostics, setDiagnostics] = useState(null);
+  const [settings, setSettings] = useState({ offlineTimeout: 10000, criticalThreshold: 80, highThreshold: 60, suspiciousThreshold: 30 });
+  const demoTimers = useRef([]);
 
   const selected = probes.find((probe) => probe.id === selectedId) || probes[0];
   const highCount = probes.filter((probe) => probe.priorityScore >= 60).length;
@@ -154,6 +157,7 @@ function App() {
   };
 
   const update = () => {
+    if (dataSource !== 'DEMO') return;
     setProbes((current) => {
       const next = current.map((probe) => {
         const stepped = stepProbe(probe, probe.id === selectedId ? event : null);
@@ -180,7 +184,34 @@ function App() {
     if (!running) return undefined;
     const timer = setInterval(update, 1800);
     return () => clearInterval(timer);
-  }, [running, event, selectedId]);
+  }, [running, event, selectedId, dataSource]);
+
+  useEffect(() => {
+    if (dataSource !== 'REAL_HARDWARE') return undefined;
+    const syncHardware = async () => {
+      try {
+        const [probeRows, alertRows, diagnosticRows] = await Promise.all([
+          api.probes(), api.alerts(), fetch('/api/diagnostics').then((response) => response.json())
+        ]);
+        const nextProbes = await Promise.all(probeRows.map(async (probe) => ({
+          ...probe,
+          online: probe.status !== 'OFFLINE',
+          battery: null,
+          acousticConnected: false,
+          communication: diagnostics?.espnow === 'CONNECTED' ? 'CONNECTED' : 'WAITING',
+          history: (await api.history(probe.id)).map((row) => ({ ...row, time: new Date(row.timestamp).toLocaleTimeString([], { hour12: false }) }))
+        })));
+        setProbes(nextProbes.map((probe) => ({ ...probe, status: probe.status || 'NORMAL' })));
+        setAlerts(alertRows.map((alert) => ({ ...alert, time: new Date(alert.timestamp).toLocaleTimeString([], { hour12: false }) })));
+        setDiagnostics(diagnosticRows);
+      } catch (_) {
+        setDiagnostics(null);
+      }
+    };
+    syncHardware();
+    const interval = setInterval(syncHardware, 1800);
+    return () => clearInterval(interval);
+  }, [dataSource]);
 
   useEffect(() => {
     api.probes().catch(() => {});
@@ -220,6 +251,7 @@ function App() {
       const data = await res.json();
       if (data.ok) {
         setDataSource(source);
+        setRunning(source === 'DEMO');
       }
     } catch (err) {
       console.error('Failed to switch data source:', err);
@@ -248,6 +280,28 @@ function App() {
       update();
       setTimeout(() => setEvent(null), 8000);
     }
+  };
+
+  const runFullDemo = () => {
+    demoTimers.current.forEach(clearTimeout);
+    setDataSource('DEMO');
+    setRunning(true);
+    setSelectedId('P-01');
+    demoTimers.current = [
+      setTimeout(() => setEvent('tap'), 500),
+      setTimeout(() => setEvent('high'), 9000),
+      setTimeout(() => setEvent('high'), 18000),
+      setTimeout(() => setEvent('high'), 27000),
+      setTimeout(() => setEvent(null), 35000)
+    ];
+  };
+
+  const resetDemo = () => {
+    demoTimers.current.forEach(clearTimeout);
+    setEvent(null);
+    setRunning(false);
+    setAlerts([]);
+    setProbes(initialProbes.map((probe) => ({ ...enrichProbe(probe), history: seededHistory(probe) })));
   };
 
   const acknowledge = (id) =>
@@ -350,24 +404,18 @@ function App() {
 
             <div className="demo-bar">
               <div>
-                <span className="demo-live" /> {running ? 'DEMO MODE' : 'DEMO STOPPED'} <small>SIMULATED SENSOR DATA</small>
+                <span className="demo-live" /> {dataSource === 'DEMO' ? (running ? 'DEMO MODE' : 'DEMO STOPPED') : 'REAL HARDWARE'} <small>{dataSource === 'DEMO' ? 'SIMULATED SENSOR DATA' : 'GATEWAY TELEMETRY'}</small>
               </div>
-              <button onClick={() => setRunning(!running)}>
+              {dataSource === 'DEMO' && <button onClick={() => setRunning(!running)}>
                 {running ? <CircleStop size={15} /> : <Zap size={15} />}
                 {running ? 'STOP DEMO' : 'START DEMO'}
-              </button>
-              <button
-                onClick={() =>
-                  setProbes(
-                    initialProbes.map((probe) => ({
-                      ...enrichProbe(probe),
-                      history: seededHistory(probe)
-                    }))
-                  )
-                }
+              </button>}
+              {dataSource === 'DEMO' && <button
+                onClick={resetDemo}
               >
                 <RefreshCw size={15} /> RESET
-              </button>
+              </button>}
+              {dataSource === 'DEMO' && <button onClick={runFullDemo}><Zap size={15} /> RUN FULL DEMO</button>}
 
               {/* Data Source Toggle */}
               <div className="data-source-toggle">
@@ -440,7 +488,7 @@ function App() {
                         </div>
                         <div className="evidence-row">
                           <span>BATTERY</span>
-                          <b>{selected.battery}%</b>
+                          <b>{dataSource === 'DEMO' ? `${selected.battery}%` : 'N/A'}</b>
                         </div>
                         <div className="evidence-row">
                           <span>LAST UPDATE</span>
@@ -585,6 +633,14 @@ function App() {
                   )}
                 </div>
               </section>
+
+              <section className="panel">
+                <div className="panel-title"><h2>SYSTEM DIAGNOSTICS</h2><span>{diagnostics ? 'LIVE' : 'LOCAL'}</span></div>
+                <div className="gateway-info">
+                  {['frontend', 'backend', 'database', 'gateway', 'serial', 'espnow'].map((key) => <div className="evidence-row" key={key}><span>{key.toUpperCase()}</span><b className={diagnostics?.[key] === 'OFFLINE' || diagnostics?.[key] === 'DISCONNECTED' ? 'offline' : 'green'}>{diagnostics?.[key] || (dataSource === 'DEMO' ? 'ONLINE' : 'WAITING')}</b></div>)}
+                  <div className="evidence-row"><span>PACKETS</span><b>{diagnostics?.packets || gatewayStatus.packetsReceived || 0}</b></div>
+                </div>
+              </section>
             </div>
           </>
         )}
@@ -632,6 +688,9 @@ function App() {
             acknowledge={acknowledge}
           />
         )}
+
+        {page === 'Reports' && <ReportView probes={probes} alerts={alerts} dataSource={dataSource} />}
+        {page === 'Settings' && <SettingsView settings={settings} setSettings={setSettings} dataSource={dataSource} onSourceChange={switchDataSource} />}
       </main>
     </div>
   );
@@ -647,6 +706,18 @@ function PanelTitle({ icon: Icon, title, action }) {
       <span>{action}</span>
     </div>
   );
+}
+
+function ReportView({ probes, alerts, dataSource }) {
+  const highest = probes.reduce((winner, probe) => probe.priorityScore > (winner?.priorityScore || -1) ? probe : winner, null);
+  const rows = [['Mission ID', 'BX-001'], ['Data source', dataSource], ['Total probes', probes.length], ['Highest priority probe', highest?.id || 'N/A'], ['Highest priority score', highest?.priorityScore ?? 'N/A'], ['Critical events', alerts.filter((alert) => alert.severity === 'CRITICAL').length], ['High priority events', alerts.filter((alert) => alert.severity === 'HIGH_PRIORITY').length], ['Warnings', alerts.filter((alert) => alert.severity === 'WARNING').length], ['Average signal quality', probes.length ? `${Math.round(probes.reduce((sum, probe) => sum + probe.signalQuality, 0) / probes.length)}%` : 'N/A']];
+  const exportCsv = () => { const csv = rows.map(([label, value]) => `${label},${value}`).join('\n'); const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = 'bhedanx-mission-report.csv'; link.click(); URL.revokeObjectURL(link.href); };
+  return <div className="page-panel panel report"><h2>BHEDANX MISSION REPORT</h2><div className="report-grid">{rows.map(([label, value]) => <Stat key={label} icon={Activity} label={label.toUpperCase()} value={String(value)} />)}</div><button className="primary" onClick={() => window.print()}>PRINT REPORT</button><button className="secondary" onClick={exportCsv}>EXPORT CSV</button></div>;
+}
+
+function SettingsView({ settings, setSettings, dataSource, onSourceChange }) {
+  const update = (key, value) => setSettings((current) => ({ ...current, [key]: Math.max(1, Number(value) || 1) }));
+  return <div className="page-panel panel settings"><div className="panel-title"><h2>SYSTEM SETTINGS</h2><span>LOCAL CONFIGURATION</span></div><div className="setting"><span>DATA SOURCE</span><span><button className="toggle" onClick={() => onSourceChange('DEMO')}>DEMO</button> <button className="toggle" onClick={() => onSourceChange('REAL_HARDWARE')}>REAL HARDWARE</button></span></div>{[['offlineTimeout', 'OFFLINE TIMEOUT (MS)'], ['criticalThreshold', 'CRITICAL THRESHOLD'], ['highThreshold', 'HIGH PRIORITY THRESHOLD'], ['suspiciousThreshold', 'SUSPICIOUS THRESHOLD']].map(([key, label]) => <label className="setting" key={key}><span>{label}</span><input type="number" min="1" max="100000" value={settings[key]} onChange={(event) => update(key, event.target.value)} /></label>)}</div>;
 }
 
 function PageView({
