@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # BhedanX Rescue Command
 
 Offline-first disaster-response prototype dashboard for vibration, acoustic activity, persistence, and signal quality. ARIA is a deterministic evidence-fusion score, not machine learning.
@@ -22,3 +23,6 @@ Open http://localhost:5173. The Express API runs at http://localhost:3001 and in
 - ESP32 hardware is intentionally not implemented; future gateway telemetry enters through `POST /api/telemetry`.
 
 External map tiles and online fonts are not required: the map is an offline local site-grid visualization and the UI uses system fallback when fonts are unavailable.
+=======
+# BhedanX-Project
+>>>>>>> ff27f0c74902e9ef4dd7d13a9b638953d85c29bf
