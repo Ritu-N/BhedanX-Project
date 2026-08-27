@@ -67,6 +67,15 @@ function App() {
   const [event, setEvent] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [prevProbes, setPrevProbes] = useState(probes);
+  const [dataSource, setDataSource] = useState('DEMO');
+  const [gatewayStatus, setGatewayStatus] = useState({
+    connected: false,
+    status: 'OFFLINE',
+    espnowStatus: 'WAITING',
+    portName: null,
+    packetsReceived: 0,
+    lastPacketTime: null
+  });
 
   const selected = probes.find((probe) => probe.id === selectedId) || probes[0];
   const highCount = probes.filter((probe) => probe.priorityScore >= 60).length;
@@ -176,6 +185,46 @@ function App() {
   useEffect(() => {
     api.probes().catch(() => {});
   }, []);
+
+  // Fetch gateway status and data source
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const systemRes = await fetch('http://localhost:3001/api/system');
+        const system = await systemRes.json();
+        if (system.dataSource) {
+          setDataSource(system.dataSource);
+        }
+        
+        const gatewayRes = await fetch('http://localhost:3001/api/gateway/status');
+        const gateway = await gatewayRes.json();
+        setGatewayStatus(gateway);
+      } catch (err) {
+        // Silent fail - use defaults
+      }
+    };
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Handle data source switching
+  const switchDataSource = async (source) => {
+    try {
+      const res = await fetch('http://localhost:3001/api/gateway/data-source', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setDataSource(source);
+      }
+    } catch (err) {
+      console.error('Failed to switch data source:', err);
+    }
+  };
 
   const trigger = (type) => {
     if (type === 'offline') {
@@ -319,6 +368,31 @@ function App() {
               >
                 <RefreshCw size={15} /> RESET
               </button>
+
+              {/* Data Source Toggle */}
+              <div className="data-source-toggle">
+                <button
+                  className={dataSource === 'DEMO' ? 'active' : ''}
+                  onClick={() => switchDataSource('DEMO')}
+                  title="Switch to demo mode"
+                >
+                  DEMO
+                </button>
+                <button
+                  className={dataSource === 'REAL_HARDWARE' ? 'active' : ''}
+                  onClick={() => switchDataSource('REAL_HARDWARE')}
+                  title="Switch to real hardware mode"
+                >
+                  REAL HARDWARE
+                </button>
+              </div>
+
+              {/* Gateway Status */}
+              <div className={`gateway-indicator ${gatewayStatus.connected ? 'connected' : 'disconnected'}`} title={`Gateway: ${gatewayStatus.status}`}>
+                <span className={`gateway-dot ${gatewayStatus.connected ? 'online' : 'offline'}`} />
+                GATEWAY: {gatewayStatus.status}
+              </div>
+
               <div className="event-buttons">
                 <button onClick={() => trigger('tap')}>SIMULATE TAPPING</button>
                 <button onClick={() => trigger('high')}>SIMULATE HIGH ACTIVITY</button>
@@ -381,6 +455,45 @@ function App() {
                       <small>Battery: {selected.battery}%</small>
                     </div>
                   )}
+                </div>
+              </section>
+
+              <section className="panel">
+                <div className="panel-title">
+                  <h2>GATEWAY STATUS</h2>
+                  <span>{gatewayStatus.status}</span>
+                </div>
+                <div className="gateway-info">
+                  <div className="info-grid">
+                    <div className="evidence-row">
+                      <span>STATUS</span>
+                      <b className={gatewayStatus.connected ? 'green' : 'offline'}>{gatewayStatus.status}</b>
+                    </div>
+                    <div className="evidence-row">
+                      <span>ESP-NOW</span>
+                      <b>{gatewayStatus.espnowStatus}</b>
+                    </div>
+                    <div className="evidence-row">
+                      <span>SERIAL PORT</span>
+                      <b>{gatewayStatus.portName || 'Not configured'}</b>
+                    </div>
+                    <div className="evidence-row">
+                      <span>PACKETS RECEIVED</span>
+                      <b>{gatewayStatus.packetsReceived || 0}</b>
+                    </div>
+                    <div className="evidence-row">
+                      <span>LAST PACKET</span>
+                      <b>
+                        {gatewayStatus.lastPacketTime
+                          ? new Date(gatewayStatus.lastPacketTime).toLocaleTimeString([], { hour12: false })
+                          : 'N/A'}
+                      </b>
+                    </div>
+                    <div className="evidence-row">
+                      <span>DATA SOURCE</span>
+                      <b>{dataSource}</b>
+                    </div>
+                  </div>
                 </div>
               </section>
 
