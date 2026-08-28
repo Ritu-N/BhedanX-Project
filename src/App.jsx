@@ -78,6 +78,7 @@ function App() {
   });
   const [diagnostics, setDiagnostics] = useState(null);
   const [settings, setSettings] = useState({ offlineTimeout: 10000, criticalThreshold: 80, highThreshold: 60, suspiciousThreshold: 30 });
+  const [hardwareError, setHardwareError] = useState(null);
   const demoTimers = useRef([]);
 
   const selected = probes.find((probe) => probe.id === selectedId) || probes[0];
@@ -252,9 +253,12 @@ function App() {
       if (data.ok) {
         setDataSource(source);
         setRunning(source === 'DEMO');
+        setHardwareError(null);
       }
     } catch (err) {
       console.error('Failed to switch data source:', err);
+      // Keep demo available when hardware mode fails
+      setHardwareError('Hardware unavailable. Demo Mode remains available.');
     }
   };
 
@@ -417,6 +421,14 @@ function App() {
               </button>}
               {dataSource === 'DEMO' && <button onClick={runFullDemo}><Zap size={15} /> RUN FULL DEMO</button>}
 
+              {hardwareError && (
+                <div className="hardware-error">
+                  <strong>Hardware unavailable.</strong>
+                  <span>{hardwareError}</span>
+                  <button onClick={() => switchDataSource('DEMO')}>USE DEMO MODE</button>
+                </div>
+              )}
+
               {/* Data Source Toggle */}
               <div className="data-source-toggle">
                 <button
@@ -470,6 +482,11 @@ function App() {
                         {selected.zone} / {selected.sector}
                       </small>
                     </div>
+                  </div>
+                  <div className="priority-hero">
+                    <div className="priority-id">{selected.id}</div>
+                    <div className="priority-score">{selected.priorityScore} / 100</div>
+                    <div className="priority-status">{selected.status}</div>
                   </div>
                   {selected.online ? (
                     <>
@@ -548,7 +565,8 @@ function App() {
               <section className="panel">
                 <div className="panel-title">
                   <h2>ARIA SIGNAL ANALYSIS</h2>
-                  <span>LIVE TELEMETRY</span>
+                    <span>LIVE TELEMETRY</span>
+                    <small className="prototype-label">PROTOTYPE EDGE SCORING</small>
                 </div>
                 {selected.history.length > 0 && (
                   <ResponsiveContainer width="100%" height={240}>
